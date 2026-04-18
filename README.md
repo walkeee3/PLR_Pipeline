@@ -4,7 +4,7 @@
 Place everything in one working directory:
 
 ```
-working_dir/
+Program/
 ├── pipeline_gui.py          ← main GUI (run this)
 ├── crop_videos_lib.py       ← crop & OCR helper
 ├── inference_pupil.py       ← your inference script
