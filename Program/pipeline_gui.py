@@ -424,6 +424,7 @@ class App(tk.Tk):
         self._result_q  = queue.Queue()
         self._pending_results = None   # dict from show_results event
         self._current_pid = None
+        self._batch_mode  = False      # True = skip confirmation, run straight through
 
         self._build_ui()
         self._poll()
@@ -479,6 +480,10 @@ class App(tk.Tk):
         self._btn_start = self._make_button(
             btn_frame, "▶  Process All", self._start_pipeline, SUCCESS)
         self._btn_start.pack(fill="x", pady=2)
+
+        self._btn_batch = self._make_button(
+            btn_frame, "⚡  Batch (no confirm)", self._start_batch, WARNING)
+        self._btn_batch.pack(fill="x", pady=2)
 
         # Right panel: log
         right = tk.Frame(body, bg=SURFACE)
@@ -589,11 +594,31 @@ class App(tk.Tk):
         self._queue = list(ids)
         self._process_next()
 
+    def _start_batch(self):
+        """Start pipeline in batch mode — no confirmation pauses."""
+        ids = self._get_video_ids()
+        if not ids:
+            messagebox.showinfo("No videos",
+                                "No videos found in the Videos/ folder.
+"
+                                "Please add videos and click Refresh.")
+            return
+        self._batch_mode = True
+        self._btn_start.config(state="disabled")
+        self._btn_batch.config(state="disabled")
+        self._btn_refresh.config(state="disabled")
+        self._log_write("Batch mode — running all videos without confirmation pauses.", "warning")
+        self._log_write("Pipeline started.", "success")
+        self._queue = list(ids)
+        self._process_next()
+
     def _process_next(self):
         if not self._queue:
             self._log_write("\n✓  All videos processed.", "success")
             self._btn_start.config(state="normal")
+            self._btn_batch.config(state="normal")
             self._btn_refresh.config(state="normal")
+            self._batch_mode = False
             self._status_var.set("Pipeline complete.")
             return
 
@@ -615,7 +640,13 @@ class App(tk.Tk):
                 level, msg = item
                 if level == "show_results":
                     self._pending_results = msg
-                    self._show_confirm_bar(msg)
+                    if self._batch_mode:
+                        # Auto-confirm — don't pause
+                        self._confirm_q.put("ok")
+                        self._log_write(
+                            f"  [batch] auto-confirmed {msg['pid']} {msg['side']}", "info")
+                    else:
+                        self._show_confirm_bar(msg)
                 else:
                     self._log_write(msg, level)
         except queue.Empty:
